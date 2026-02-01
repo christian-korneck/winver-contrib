@@ -33,12 +33,13 @@ void ResetTextColor ();
 bool IsOptionPresent (wchar_t c);
 
 template <std::size_t N>
-std::size_t Convert (const char * in, _Out_writes_z_ (N) wchar_t (&out) [N]) {
+std::size_t Convert (const char * in, _Out_writes_z_(N) wchar_t (&out) [N]) {
     return MultiByteToWideChar (CP_ACP, 0, in, -1, out, N);
 }
 
 HKEY hKey = NULL;
 HKEY hVmKey = NULL;
+HKEY hSBIKey = NULL;
 HANDLE out = NULL;
 HMODULE hKernel32 = NULL;
 bool  file = false;
@@ -105,6 +106,7 @@ __declspec (noreturn) void main () {
     }
 #endif
     RegOpenKeyExA (HKEY_LOCAL_MACHINE, "SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion", 0, dwRegFlags, &hKey);
+    RegOpenKeyExA (HKEY_LOCAL_MACHINE, "SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion\\SBI", 0, dwRegFlags, &hSBIKey);
     RegOpenKeyExA (HKEY_LOCAL_MACHINE, "SOFTWARE\\Microsoft\\Virtual Machine\\Guest\\Parameters", 0, dwRegFlags, &hVmKey);
 
     build &= 0x0FFF'FFFF;
@@ -176,11 +178,12 @@ __declspec (noreturn) void main () {
     bool extraNL = false;
 
     // winver.com -b
+    //  - 28000.1495.amd64fre.br_release_svc_betaflt_prod1.260120-1345
     //  - 14393.6611.amd64fre.rs1_release.231218-1733
 
     if (IsOptionPresent (L'b')) {
         SetTextColor (8);
-        if (PrintValueFromRegistry ("BuildLabEx") || PrintValueFromRegistry ("BuildLab")) {
+        if (PrintValueFromRegistry (hSBIKey, "SourceBuild") || PrintValueFromRegistry ("BuildLabEx") || PrintValueFromRegistry ("BuildLab")) {
             PrintNewline ();
             extraNL = true;
         }
@@ -1189,44 +1192,44 @@ void PrintHypervisorInfo () {
                 PrintNewline ();
             }
         }
-
-        DWORD type = ~0;
-        if (QueryEvtValue ("Hyper-V-Hypervisor", 2, "SchedulerType", &type)) {
-            if (hVmKey != NULL) {
-                PrintRsrc (4);
-            }
-            PrintRsrc (0x40);
-            if (type >= 1 && type <= 4) {
-                PrintRsrc (0x40 + type);
-            } else {
-                PrintNumber (type);
-            }
-            PrintNewline ();
-        }
-
-#ifndef _M_ARM64
-        if (raz) {
-            if (hVmKey != NULL) {
-                PrintRsrc (4);
-            }
-            PrintRsrc (0x37);
-            PrintNumber (info.MajorVersion);
-            Print ('.');
-            PrintNumber (info.MinorVersion);
-            Print ('.');
-            PrintNumber (info.BuildNumber);
-            Print ('.');
-            PrintNumber (info.ServiceNumber);
-            PrintRsrc (0x38);
-            PrintNumber (info.ServicePack);
-            PrintRsrc (0x39);
-            PrintNumber (info.ServiceBranch);
-            PrintNewline ();
-        }
-#endif
     } else {
         PrintRsrc (0x31);
     }
+
+    DWORD type = ~0;
+    if (QueryEvtValue ("Hyper-V-Hypervisor", 2, "SchedulerType", &type)) {
+        if (hVmKey != NULL) {
+            PrintRsrc (4);
+        }
+        PrintRsrc (0x40);
+        if (type >= 1 && type <= 4) {
+            PrintRsrc (0x40 + type);
+        } else {
+            PrintNumber (type);
+        }
+        PrintNewline ();
+    }
+
+#ifndef _M_ARM64
+    if (raz) {
+        if (hVmKey != NULL) {
+            PrintRsrc (4);
+        }
+        PrintRsrc (0x37);
+        PrintNumber (info.MajorVersion);
+        Print ('.');
+        PrintNumber (info.MinorVersion);
+        Print ('.');
+        PrintNumber (info.BuildNumber);
+        Print ('.');
+        PrintNumber (info.ServiceNumber);
+        PrintRsrc (0x38);
+        PrintNumber (info.ServicePack);
+        PrintRsrc (0x39);
+        PrintNumber (info.ServiceBranch);
+        PrintNewline ();
+    }
+#endif
 }
 
 bool PrintSecureKernel () {
